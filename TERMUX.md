@@ -59,10 +59,11 @@ Or:
 ./start-termux.sh
 ```
 
-This presents a menu to choose between:
+This presents an interactive menu to choose between:
 - Starting the Web UI
 - Starting Web UI in Development mode (with live reload)
 - Running a headless CLI task
+- **Setting / Editing your DeepSeek API Key**
 - Opening an interactive Ubuntu shell
 - Updating dependencies
 

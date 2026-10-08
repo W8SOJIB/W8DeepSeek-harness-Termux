@@ -77,11 +77,73 @@ run_in_proot() {
     "
 }
 
+# Helper to get masked API key
+get_masked_key() {
+  if [ -n "${DEEPSEEK_API_KEY:-}" ]; then
+    local len=${#DEEPSEEK_API_KEY}
+    if [ "$len" -gt 10 ]; then
+      echo "${DEEPSEEK_API_KEY:0:5}...${DEEPSEEK_API_KEY: -4}"
+    else
+      echo "********"
+    fi
+  else
+    echo ""
+  fi
+}
+
+# Configure / Edit API Key
+configure_api_key() {
+  echo ""
+  echo -e "${BOLD}${CYAN}------------------------------------------------------------${NC}"
+  echo -e "${BOLD}${CYAN}          Set / Edit DeepSeek API Key                       ${NC}"
+  echo -e "${BOLD}${CYAN}------------------------------------------------------------${NC}"
+  local current_masked
+  current_masked="$(get_masked_key)"
+  if [ -n "$current_masked" ]; then
+    echo -e "Current API Key: ${GREEN}[Configured: $current_masked]${NC}"
+  else
+    echo -e "Current API Key: ${YELLOW}[Not Set]${NC}"
+  fi
+  echo ""
+  read -r -p "Enter DeepSeek API Key (press Enter to cancel): " input_key
+  if [ -n "$input_key" ]; then
+    # Trim input
+    input_key="$(echo "$input_key" | xargs)"
+    # Update or create .env file
+    if [ -f "$REPO_DIR/.env" ]; then
+      grep -v "^DEEPSEEK_API_KEY=" "$REPO_DIR/.env" > "$REPO_DIR/.env.tmp" 2>/dev/null || true
+      mv "$REPO_DIR/.env.tmp" "$REPO_DIR/.env"
+    fi
+    echo "DEEPSEEK_API_KEY=\"$input_key\"" >> "$REPO_DIR/.env"
+    export DEEPSEEK_API_KEY="$input_key"
+    echo -e "${GREEN}[✓] API Key saved to $REPO_DIR/.env!${NC}"
+  else
+    echo "No API key change made."
+  fi
+
+  echo ""
+  read -r -p "Configure custom API Base URL? [y/N]: " ask_url
+  if [[ "$ask_url" =~ ^[Yy]$ ]]; then
+    read -r -p "Enter Base URL (e.g. https://api.deepseek.com): " input_url
+    if [ -n "$input_url" ]; then
+      input_url="$(echo "$input_url" | xargs)"
+      if [ -f "$REPO_DIR/.env" ]; then
+        grep -v "^DEEPSEEK_BASE_URL=" "$REPO_DIR/.env" > "$REPO_DIR/.env.tmp" 2>/dev/null || true
+        mv "$REPO_DIR/.env.tmp" "$REPO_DIR/.env"
+      fi
+      echo "DEEPSEEK_BASE_URL=\"$input_url\"" >> "$REPO_DIR/.env"
+      export DEEPSEEK_BASE_URL="$input_url"
+      echo -e "${GREEN}[✓] Base URL saved to $REPO_DIR/.env!${NC}"
+    fi
+  fi
+  echo ""
+}
+
 # Check API key notice
 check_api_key() {
   if [ -z "${DEEPSEEK_API_KEY:-}" ]; then
-    echo -e "${YELLOW}[!] Notice: DEEPSEEK_API_KEY is not set in environment or .env file.${NC}"
-    echo -e "    You can set it with: ${BOLD}export DEEPSEEK_API_KEY=\"sk-...\"${NC}"
+    echo -e "${YELLOW}[!] Notice: DEEPSEEK_API_KEY is not set.${NC}"
+    echo -e "    You can set it directly from the menu (option 4)"
     echo -e "    or add it to ${BOLD}$REPO_DIR/.env${NC}"
     echo ""
   fi
@@ -91,35 +153,60 @@ MODE="${1:-}"
 shift 1 2>/dev/null || true
 
 case "$MODE" in
+  api|key|set-api)
+    configure_api_key
+    exit 0
+    ;;
   web|start|"")
     if [ -z "$MODE" ] && [ -t 0 ]; then
-      # Interactive mode menu
-      echo -e "${BOLD}${BLUE}============================================================${NC}"
-      echo -e "${BOLD}${BLUE}       DeepSeek Harness - Termux Control Panel              ${NC}"
-      echo -e "${BOLD}${BLUE}============================================================${NC}"
-      echo ""
-      echo -e "  ${BOLD}1)${NC} Start Web UI (Browser: http://localhost:3080)"
-      echo -e "  ${BOLD}2)${NC} Start Web UI (Dev Mode / Watchers)"
-      echo -e "  ${BOLD}3)${NC} Run Headless CLI Task"
-      echo -e "  ${BOLD}4)${NC} Open Ubuntu Terminal Shell"
-      echo -e "  ${BOLD}5)${NC} Re-run Dependency Install (pnpm install)"
-      echo -e "  ${BOLD}6)${NC} Exit"
-      echo ""
-      read -r -p "Select option [1-6, default: 1]: " choice
-      choice="${choice:-1}"
-      case "$choice" in
-        1) MODE="web" ;;
-        2) MODE="dev" ;;
-        3)
-          read -r -p "Enter prompt/task: " task_prompt
-          MODE="cli"
-          set -- "$task_prompt"
-          ;;
-        4) MODE="shell" ;;
-        5) MODE="install" ;;
-        6) echo "Exiting."; exit 0 ;;
-        *) echo "Invalid option."; exit 1 ;;
-      esac
+      while true; do
+        # Reload .env if updated
+        if [ -f "$REPO_DIR/.env" ]; then
+          set -a
+          # shellcheck disable=SC1091
+          source "$REPO_DIR/.env" 2>/dev/null || true
+          set +a
+        fi
+
+        echo -e "${BOLD}${BLUE}============================================================${NC}"
+        echo -e "${BOLD}${BLUE}       DeepSeek Harness - Termux Control Panel              ${NC}"
+        echo -e "${BOLD}${BLUE}============================================================${NC}"
+        local key_display
+        key_display="$(get_masked_key)"
+        if [ -n "$key_display" ]; then
+          echo -e "  API Key Status: ${GREEN}[✓ Configured: $key_display]${NC}"
+        else
+          echo -e "  API Key Status: ${RED}[✗ Not Set - Choose option 4 to configure]${NC}"
+        fi
+        echo ""
+        echo -e "  ${BOLD}1)${NC} Start Web UI (Browser: http://localhost:3080)"
+        echo -e "  ${BOLD}2)${NC} Start Web UI (Dev Mode / Watchers)"
+        echo -e "  ${BOLD}3)${NC} Run Headless CLI Task"
+        echo -e "  ${BOLD}4)${NC} Set / Edit DeepSeek API Key"
+        echo -e "  ${BOLD}5)${NC} Open Ubuntu Terminal Shell"
+        echo -e "  ${BOLD}6)${NC} Re-run Dependency Install (pnpm install)"
+        echo -e "  ${BOLD}7)${NC} Exit"
+        echo ""
+        read -r -p "Select option [1-7, default: 1]: " choice
+        choice="${choice:-1}"
+        case "$choice" in
+          1) MODE="web"; break ;;
+          2) MODE="dev"; break ;;
+          3)
+            read -r -p "Enter prompt/task: " task_prompt
+            MODE="cli"
+            set -- "$task_prompt"
+            break
+            ;;
+          4)
+            configure_api_key
+            ;;
+          5) MODE="shell"; break ;;
+          6) MODE="install"; break ;;
+          7) echo "Exiting."; exit 0 ;;
+          *) echo "Invalid option." ;;
+        esac
+      done
     fi
     ;;
 esac
