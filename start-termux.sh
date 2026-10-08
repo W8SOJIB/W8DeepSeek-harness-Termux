@@ -66,12 +66,21 @@ fi
 
 # Helper to run commands inside proot Ubuntu
 run_in_proot() {
+  local env_exports=""
+  if [ -n "${DEEPSEEK_API_KEY:-}" ]; then
+    env_exports="${env_exports}export DEEPSEEK_API_KEY=\"$DEEPSEEK_API_KEY\"; "
+  fi
+  if [ -n "${DEEPSEEK_BASE_URL:-}" ]; then
+    env_exports="${env_exports}export DEEPSEEK_BASE_URL=\"$DEEPSEEK_BASE_URL\"; "
+  else
+    env_exports="${env_exports}unset DEEPSEEK_BASE_URL; "
+  fi
+
   proot-distro login "$DISTRO" \
     --termux-home \
     --bind "$REPO_DIR":/workspace \
     -- /bin/bash -c "
-      export DEEPSEEK_API_KEY=\"${DEEPSEEK_API_KEY:-}\"
-      export DEEPSEEK_BASE_URL=\"${DEEPSEEK_BASE_URL:-}\"
+      $env_exports
       cd /workspace
       $*
     "

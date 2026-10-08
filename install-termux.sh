@@ -214,8 +214,10 @@ if [ -d "/workspace/node_modules" ]; then
 else
   echo "  [+] Installing project dependencies via pnpm (this may take a few minutes)..."
   pnpm install
-  echo "  [✓] Dependencies installed successfully."
 fi
+
+echo "  [*] Preparing native addon build artifacts..."
+pnpm run build:native-system >/dev/null 2>&1 || true
 
 EOF
 

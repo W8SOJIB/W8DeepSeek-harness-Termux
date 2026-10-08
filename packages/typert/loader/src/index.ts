@@ -25,7 +25,7 @@
  * @module @deepseek-ai/dsh-typert-loader
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -362,7 +362,8 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
     if (rel === undefined && configured.has(pkgName)) {
       throw new Error(`typert-loader: configured package "${pkgName}" does not export "${TYPERT_HOST_EXPORT}"`)
     }
-    const resolved = rel === undefined ? null : { packageName: manifestName, path: join(dirname(pkgPath), rel) }
+    const targetPath = rel === undefined ? undefined : join(dirname(pkgPath), rel)
+    const resolved = targetPath === undefined || !existsSync(targetPath) ? null : { packageName: manifestName, path: targetPath }
     artifactPath.set(pkgName, resolved)
     return resolved
   }

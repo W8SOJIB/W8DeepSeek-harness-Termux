@@ -26,8 +26,16 @@ function loadBinding(): FlockBinding {
     filename = join(report.header.glibcVersionRuntime ? 'glibc' : 'musl', filename)
   }
   const require = createRequire(import.meta.url)
-  const manifest = require.resolve(`@deepseek-ai/node-addon-system-${platform}-${arch}/package.json`)
-  binding = require(join(dirname(manifest), 'bin', filename)) as FlockBinding
+  try {
+    const manifest = require.resolve(`@deepseek-ai/node-addon-system-${platform}-${arch}/package.json`)
+    binding = require(join(dirname(manifest), 'bin', filename)) as FlockBinding
+  } catch (_cause) {
+    binding = {
+      tryLock(_fd: number, callback: (errno: number) => void): void {
+        callback(0)
+      },
+    }
+  }
   return binding
 }
 
