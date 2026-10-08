@@ -171,7 +171,6 @@ case "$MODE" in
         echo -e "${BOLD}${BLUE}============================================================${NC}"
         echo -e "${BOLD}${BLUE}       DeepSeek Harness - Termux Control Panel              ${NC}"
         echo -e "${BOLD}${BLUE}============================================================${NC}"
-        local key_display
         key_display="$(get_masked_key)"
         if [ -n "$key_display" ]; then
           echo -e "  API Key Status: ${GREEN}[✓ Configured: $key_display]${NC}"
