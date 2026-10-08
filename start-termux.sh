@@ -21,19 +21,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
 # Locate repo directory
 if [ -f "$SCRIPT_DIR/package.json" ]; then
   REPO_DIR="$SCRIPT_DIR"
-elif [ -d "$HOME/deepseek-harness" ]; then
+elif [ -d "$HOME/W8DeepSeek-harness-Termux" ] && [ -f "$HOME/W8DeepSeek-harness-Termux/package.json" ]; then
+  REPO_DIR="$HOME/W8DeepSeek-harness-Termux"
+elif [ -d "$HOME/deepseek-harness" ] && [ -f "$HOME/deepseek-harness/package.json" ]; then
   REPO_DIR="$HOME/deepseek-harness"
 else
   REPO_DIR="$(pwd)"
 fi
 
 DISTRO="ubuntu"
-TERMUX_PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
-ROOTFS_DIR="$TERMUX_PREFIX/var/lib/proot-distro/installed-rootfs/$DISTRO"
 
 # Check if proot-distro and distro exist
-if ! command -v proot-distro >/dev/null 2>&1 || [ ! -d "$ROOTFS_DIR" ]; then
-  echo -e "${YELLOW}[!] Setup required: proot-distro or '$DISTRO' is not ready.${NC}"
+DISTRO_READY=0
+if command -v proot-distro >/dev/null 2>&1; then
+  if proot-distro login "$DISTRO" -- true 2>/dev/null; then
+    DISTRO_READY=1
+  fi
+fi
+
+if [ "$DISTRO_READY" -eq 0 ]; then
+  echo -e "${YELLOW}[!] Setup required: proot-distro or '$DISTRO' container is not ready.${NC}"
   echo -e "    Running 1-click installer now..."
   if [ -f "$REPO_DIR/install-termux.sh" ]; then
     exec bash "$REPO_DIR/install-termux.sh"

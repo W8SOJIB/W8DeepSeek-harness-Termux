@@ -52,10 +52,12 @@ if [ -f "$SCRIPT_DIR/package.json" ] && grep -q "@deepseek-ai/dsh" "$SCRIPT_DIR/
   REPO_DIR="$SCRIPT_DIR"
 elif [ -f "$(pwd)/package.json" ] && grep -q "@deepseek-ai/dsh" "$(pwd)/package.json" 2>/dev/null; then
   REPO_DIR="$(pwd)"
+elif [ -d "$HOME/W8DeepSeek-harness-Termux" ] && [ -f "$HOME/W8DeepSeek-harness-Termux/package.json" ]; then
+  REPO_DIR="$HOME/W8DeepSeek-harness-Termux"
 elif [ -d "$HOME/deepseek-harness" ] && [ -f "$HOME/deepseek-harness/package.json" ]; then
   REPO_DIR="$HOME/deepseek-harness"
 else
-  REPO_DIR="$HOME/deepseek-harness"
+  REPO_DIR="$HOME/W8DeepSeek-harness-Termux"
 fi
 
 # Storage safety check: Warn against /sdcard or /storage/emulated/0
@@ -63,8 +65,8 @@ if [[ "$REPO_DIR" == *"/sdcard"* ]] || [[ "$REPO_DIR" == *"/storage/emulated"* ]
   echo -e "${RED}[!] WARNING: You are running in Android shared storage ($REPO_DIR).${NC}"
   echo -e "    Android's /sdcard does NOT support Linux symlinks or permissions,"
   echo -e "    which will cause Node.js and pnpm installation to FAIL."
-  echo -e "    Switching repository location to Termux private home directory: $HOME/deepseek-harness"
-  REPO_DIR="$HOME/deepseek-harness"
+  echo -e "    Switching repository location to Termux private home directory: $HOME/W8DeepSeek-harness-Termux"
+  REPO_DIR="$HOME/W8DeepSeek-harness-Termux"
 fi
 
 # ------------------------------------------------------------------------------
@@ -77,8 +79,8 @@ if command -v proot-distro >/dev/null 2>&1; then
   echo -e "    (Skipping download and package installation)"
 else
   echo -e "${YELLOW}[→] proot-distro not found. Installing proot-distro via pkg...${NC}"
-  pkg update -y
-  pkg install -y proot-distro curl git
+  pkg update -y || true
+  pkg install -y proot-distro curl git || apt-get install -y proot-distro curl git
   echo -e "${GREEN}[✓] proot-distro installed successfully.${NC}"
 fi
 
@@ -88,25 +90,45 @@ fi
 echo ""
 DISTRO="ubuntu"
 TERMUX_PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
-ROOTFS_DIR="$TERMUX_PREFIX/var/lib/proot-distro/installed-rootfs/$DISTRO"
 
 echo -e "${BOLD}[2/4] Checking proot-distro distribution ('$DISTRO')...${NC}"
 
 DISTRO_ALREADY_INSTALLED=0
-if [ -d "$ROOTFS_DIR" ]; then
+
+# Check 1: Direct test using proot-distro login
+if proot-distro login "$DISTRO" -- true 2>/dev/null; then
   DISTRO_ALREADY_INSTALLED=1
-elif proot-distro list 2>/dev/null | grep -E "(^|[[:space:]])${DISTRO}[[:space:]]+\(installed\)" >/dev/null; then
+# Check 2: Check proot-distro list output (case-insensitive)
+elif proot-distro list 2>/dev/null | grep -i "$DISTRO" | grep -qi "installed"; then
   DISTRO_ALREADY_INSTALLED=1
+# Check 3: Check filesystem rootfs directories
+else
+  for test_dir in \
+    "$TERMUX_PREFIX/var/lib/proot-distro/installed-rootfs/$DISTRO" \
+    "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/$DISTRO" \
+    "$HOME/../usr/var/lib/proot-distro/installed-rootfs/$DISTRO"; do
+    if [ -d "$test_dir" ]; then
+      DISTRO_ALREADY_INSTALLED=1
+      break
+    fi
+  done
 fi
 
 if [ "$DISTRO_ALREADY_INSTALLED" -eq 1 ]; then
-  echo -e "${GREEN}[✓] '$DISTRO' distribution is ALREADY installed in proot-distro.${NC}"
-  echo -e "    Auto-working with existing distro. No need to download or install again!"
+  echo -e "${GREEN}[✓] '$DISTRO' container is ALREADY installed in proot-distro.${NC}"
+  echo -e "    Auto-working with existing Ubuntu container! Skipping download."
 else
-  echo -e "${YELLOW}[→] '$DISTRO' distribution is not installed yet.${NC}"
-  echo -e "    Downloading and installing Ubuntu rootfs (one-time setup)..."
-  proot-distro install "$DISTRO"
-  echo -e "${GREEN}[✓] '$DISTRO' rootfs installed successfully.${NC}"
+  echo -e "${YELLOW}[→] Container '$DISTRO' not detected. Running proot-distro install...${NC}"
+  INSTALL_OUT=$(proot-distro install "$DISTRO" 2>&1 || true)
+  if echo "$INSTALL_OUT" | grep -qi "already exists"; then
+    echo -e "${GREEN}[✓] '$DISTRO' container already exists! Reusing existing installation.${NC}"
+  elif proot-distro login "$DISTRO" -- true 2>/dev/null; then
+    echo -e "${GREEN}[✓] '$DISTRO' rootfs installed successfully.${NC}"
+  else
+    echo "$INSTALL_OUT"
+    echo -e "${RED}[!] Error: Could not verify '$DISTRO' container in proot-distro.${NC}"
+    exit 1
+  fi
 fi
 
 # ------------------------------------------------------------------------------
